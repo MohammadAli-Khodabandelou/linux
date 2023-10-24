@@ -3503,6 +3503,106 @@ void *kmem_cache_alloc(struct kmem_cache *s, gfp_t gfpflags)
 }
 EXPORT_SYMBOL(kmem_cache_alloc);
 
+//added by mali
+//============================================================
+void validate_fast_freelist(struct kmem_cache *s, void *object_to_verify)
+{
+	struct kmem_cache_cpu *c;
+	void *object;
+	void *next_object;
+
+	c = raw_cpu_ptr(s->cpu_slab);
+
+	object = c->freelist;
+
+	printk("starting fast free list validation\n");
+	printk("object to verify address: %p\n", object_to_verify);
+	while(object) {
+		//print address of the object
+		printk("object address: %p\n", object);
+		//get next object
+		next_object = get_freepointer_safe(s, object);
+		prefetch_freepointer(s, next_object);
+		object = next_object;
+	}
+	printk("ending fast free list validation\n");
+}
+EXPORT_SYMBOL(validate_fast_freelist);
+
+void validate_slab_freelist(struct kmem_cache *s, void *object_to_verify)
+{
+	struct kmem_cache_cpu *c;
+	c = raw_cpu_ptr(s->cpu_slab);
+
+	//iterate through the slab's freelist
+	void *object;
+	void *next_object;
+
+	//first, acquire the kmem_cache_cpu lock
+	unsigned long flags;
+	local_lock_irqsave(&s->cpu_slab->lock, flags);
+	//get the cpu slab
+	struct slab *slab = this_cpu_read(s->cpu_slab->slab);
+
+	printk("starting slab free list validation\n");
+	printk("object to verify address: %p\n", object_to_verify);
+	while(slab) {
+		object = slab->freelist;
+		while(object) {
+			//print address of the object
+			printk("object address: %p\n", object);
+			//get next object
+			next_object = get_freepointer_safe(s, object);
+			prefetch_freepointer(s, next_object);
+			object = next_object;
+		}
+		slab = slab->next;
+	}
+	printk("ending slab free list validation\n");
+
+	//release the kmem_cache_cpu lock
+	local_unlock_irqrestore(&s->cpu_slab->lock, flags);
+}
+EXPORT_SYMBOL(validate_slab_freelist);
+
+
+void validate_partial_freelist(struct kmem_cache *s, void *object_to_verify)
+{
+	struct kmem_cache_cpu *c;
+	c = raw_cpu_ptr(s->cpu_slab);
+
+	//iterate through the slab's freelist
+	void *object;
+	void *next_object;
+
+	//first, acquire the kmem_cache_cpu lock
+	unsigned long flags;
+	local_lock_irqsave(&s->cpu_slab->lock, flags);
+	//get the cpu slab
+	struct slab *slab = this_cpu_read(s->cpu_slab->partial);
+
+	printk("starting partial free list validation\n");
+	printk("object to verify address: %p\n", object_to_verify);
+	while(slab) {
+		object = slab->freelist;
+		while(object) {
+			//print address of the object
+			printk("object address: %p\n", object);
+			//get next object
+			next_object = get_freepointer_safe(s, object);
+			prefetch_freepointer(s, next_object);
+			object = next_object;
+		}
+		slab = slab->next;
+	}
+	printk("ending partial free list validation\n");
+
+	//release the kmem_cache_cpu lock
+	local_unlock_irqrestore(&s->cpu_slab->lock, flags);
+}
+EXPORT_SYMBOL(validate_partial_freelist);
+//============================================================
+
 void *kmem_cache_alloc_lru(struct kmem_cache *s, struct list_lru *lru,
 			   gfp_t gfpflags)
 {

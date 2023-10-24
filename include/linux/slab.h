@@ -179,6 +179,11 @@
 
 #include <linux/kasan.h>
 
+
+//mmverify functions (main)
+void verify_my_address(void*);
+void verify_my_address_plus(struct kmem_cache *s, void *object);
+
 struct list_lru;
 struct mem_cgroup;
 /*

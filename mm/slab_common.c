@@ -30,6 +30,7 @@
 
 #include "internal.h"
 #include "slab.h"
+#include "slub.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/kmem.h>
@@ -1511,3 +1512,43 @@ int should_failslab(struct kmem_cache *s, gfp_t gfpflags)
 	return 0;
 }
 ALLOW_ERROR_INJECTION(should_failslab, ERRNO);
+
+/*
+verify the validity of the address
+*/
+void verify_my_address(void *object) {
+
+    printk(KERN_INFO "pointer to verify: %pn", object);
+
+    struct folio *folio;
+    struct slab *slab;
+    struct kmem_cache *s;
+    void* freelist;
+
+    folio = virt_to_folio(object);
+    slab = folio_slab(folio);
+    s = slab->slab_cache;
+    // lock the slab then traverse the slab for all freelist
+    // whatever memory is not in the freelist is in the allocated list
+    freelist = slab->freelist;
+    while (freelist) {
+       printk(KERN_INFO "freelist pointer: %px", freelist);
+       freelist = (void *) * (unsigned long *) ((char *) freelist + s->offset);
+    }
+    // if the object is in slab cache freelist,
+    //   it is a valid memory location
+    // else
+    //   it is not a valid memory location
+}
+EXPORT_SYMBOL(verify_my_address);
+
+/*
+verify the validity of the address by considering the per-cpu freelist
+*/
+
+void verify_my_address_plus(struct kmem_cache *s, void *object) {
+	validate_fast_freelist(s, object);
+	// validate_slab_freelist(s, object);
+	// validate_partial_freelist(s, object);
+}
+EXPORT_SYMBOL(verify_my_address_plus);
