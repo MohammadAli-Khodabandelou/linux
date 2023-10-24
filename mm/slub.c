@@ -3529,42 +3529,6 @@ void validate_fast_freelist(struct kmem_cache *s, void *object_to_verify)
 }
 EXPORT_SYMBOL(validate_fast_freelist);
 
-void validate_slab_freelist(struct kmem_cache *s, void *object_to_verify)
-{
-	struct kmem_cache_cpu *c;
-	c = raw_cpu_ptr(s->cpu_slab);
-
-	//iterate through the slab's freelist
-	void *object;
-	void *next_object;
-
-	//first, acquire the kmem_cache_cpu lock
-	unsigned long flags;
-	local_lock_irqsave(&s->cpu_slab->lock, flags);
-	//get the cpu slab
-	struct slab *slab = this_cpu_read(s->cpu_slab->slab);
-
-	printk("starting slab free list validation\n");
-	printk("object to verify address: %p\n", object_to_verify);
-	while(slab) {
-		object = slab->freelist;
-		while(object) {
-			//print address of the object
-			printk("object address: %p\n", object);
-			//get next object
-			next_object = get_freepointer_safe(s, object);
-			prefetch_freepointer(s, next_object);
-			object = next_object;
-		}
-		slab = slab->next;
-	}
-	printk("ending slab free list validation\n");
-
-	//release the kmem_cache_cpu lock
-	local_unlock_irqrestore(&s->cpu_slab->lock, flags);
-}
-EXPORT_SYMBOL(validate_slab_freelist);
-
 
 void validate_partial_freelist(struct kmem_cache *s, void *object_to_verify)
 {
@@ -3576,10 +3540,11 @@ void validate_partial_freelist(struct kmem_cache *s, void *object_to_verify)
 	void *next_object;
 
 	//first, acquire the kmem_cache_cpu lock
-	unsigned long flags;
-	local_lock_irqsave(&s->cpu_slab->lock, flags);
+	// unsigned long flags;
+	// local_lock_irqsave(&s->cpu_slab->lock, flags);
 	//get the cpu slab
-	struct slab *slab = this_cpu_read(s->cpu_slab->partial);
+	struct slab *slab;
+	slab = READ_ONCE(c->slab);
 
 	printk("starting partial free list validation\n");
 	printk("object to verify address: %p\n", object_to_verify);
@@ -3598,7 +3563,7 @@ void validate_partial_freelist(struct kmem_cache *s, void *object_to_verify)
 	printk("ending partial free list validation\n");
 
 	//release the kmem_cache_cpu lock
-	local_unlock_irqrestore(&s->cpu_slab->lock, flags);
+	// local_unlock_irqrestore(&s->cpu_slab->lock, flags);
 }
 EXPORT_SYMBOL(validate_partial_freelist);
 //============================================================
@@ -6625,3 +6590,35 @@ ssize_t slabinfo_write(struct file *file, const char __user *buffer,
 	return -EIO;
 }
 #endif /* CONFIG_SLUB_DEBUG */
+
+
+void validate_slab_freelist(struct kmem_cache *s, void *object_to_verify)
+{
+	//print: inside validate_slab_freelist
+	printk("inside validate_slab_freelist\n");
+	struct kmem_cache_cpu *c = per_cpu_ptr(s->cpu_slab, 0);
+	struct slab *slab;
+
+	slab = READ_ONCE(c->slab);
+	// if(!slab)
+		// return;
+
+	void *object;
+	void *next_object;
+	object = get_freelist(s, slab);
+	while(object) {
+		//print address of the object
+		printk("object address: %p\n", object);
+		//get next object
+		next_object = get_freepointer_safe(s, object);
+		prefetch_freepointer(s, next_object);
+		object = next_object;
+	}
+
+
+	// print the slab 
+	printk("slab: %p\n", slab);
+	printk("exit validate_slab_freelist\n");
+
+}
+EXPORT_SYMBOL(validate_slab_freelist);
