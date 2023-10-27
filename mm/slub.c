@@ -3505,6 +3505,54 @@ EXPORT_SYMBOL(kmem_cache_alloc);
 
 //added by mali
 //============================================================
+void validate_fast_freelist_multi_core(struct kmem_cache *s, void *object_to_verify)
+{
+	void *object;
+	void *next_object;
+
+	int cpu;
+
+		for_each_possible_cpu(cpu) {
+			struct kmem_cache_cpu *c = per_cpu_ptr(s->cpu_slab,
+							       cpu);
+			
+			object = c->freelist;
+			printk("starting fast free list validation for cpu %d\n", cpu);
+			printk("object to verify address: %p\n", object_to_verify);
+			while(object) {
+				//print address of the object
+				printk("object address: %p\n", object);
+				//get next object
+				if(object == object_to_verify) {
+					printk("object to verify found in fast free list\n");
+					return;
+				}
+				next_object = get_freepointer_safe(s, object);
+				prefetch_freepointer(s, next_object);
+				object = next_object;
+			}
+
+/*
+#ifdef CONFIG_SLUB_CPU_PARTIAL
+			slab = slub_percpu_partial_read_once(c);
+			if (slab) {
+				node = slab_nid(slab);
+				if (flags & SO_TOTAL)
+					WARN_ON_ONCE(1);
+				else if (flags & SO_OBJECTS)
+					WARN_ON_ONCE(1);
+				else
+					x = slab->slabs;
+				total += x;
+				nodes[node] += x;
+			}
+#endif
+*/
+		}
+	printk("ending fast free list validation\n");
+}
+EXPORT_SYMBOL(validate_fast_freelist_multi_core);
+
 void validate_fast_freelist(struct kmem_cache *s, void *object_to_verify)
 {
 	struct kmem_cache_cpu *c;
@@ -3521,6 +3569,10 @@ void validate_fast_freelist(struct kmem_cache *s, void *object_to_verify)
 		//print address of the object
 		printk("object address: %p\n", object);
 		//get next object
+		if(object == object_to_verify) {
+			printk("object to verify found in fast free list\n");
+			break;
+		}
 		next_object = get_freepointer_safe(s, object);
 		prefetch_freepointer(s, next_object);
 		object = next_object;

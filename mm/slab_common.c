@@ -1547,10 +1547,9 @@ verify the validity of the address by considering the per-cpu freelist
 */
 
 void verify_my_address_plus(struct kmem_cache *s, void *object) {
-	
-
-	validate_fast_freelist(s, object);
-	validate_slab_freelist(s, object);
+	validate_fast_freelist_multi_core(s, object);
+	// validate_fast_freelist(s, object);
+	// validate_slab_freelist(s, object);
 	// validate_partial_freelist(s, object);
 }
 EXPORT_SYMBOL(verify_my_address_plus);
